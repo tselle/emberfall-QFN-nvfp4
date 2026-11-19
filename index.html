@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#14130f">
+<title>Emberfall: The Emberwild Saga</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="view"></canvas>
+  <div id="hud"></div>
+  <div id="screen" class="hidden"></div>
+</div>
+<noscript><p style="color:#e8e4d2;padding:2em">Emberfall needs JavaScript to dream.</p></noscript>
+<!-- loaded in dependency order -->
+<script src="js/rules.js"></script>
+<script src="js/data.js"></script>
+<script src="js/modules.js"></script>
+<script src="js/monsters.js"></script>
+<script src="js/wilds.js"></script>
+<script src="js/treasure.js"></script>
+<script src="js/adventures.js"></script>
+<script src="js/figures.js"></script>
+<script src="js/view3d.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/overland.js"></script>
+<script src="js/campaign.js"></script>
+<script src="js/journal.js"></script>
+<script src="js/map.js"></script>
+<script src="js/bestiary.js"></script>
+<script src="js/navpad.js"></script>
+<script src="js/watch.js"></script>
+<script src="js/game.js"></script>
+<script>
+  window.addEventListener('DOMContentLoaded', function () {
+    // resize view canvas to the window, retina-aware but capped for old tablets
+    var v = document.getElementById('view');
+    function fit() {
+      var dpr = Math.min(2, window.devicePixelRatio || 1);
+      v.width = Math.floor(v.clientWidth * dpr);
+      v.height = Math.floor(v.clientHeight * dpr);
+    }
+    window.addEventListener('resize', fit);
+    window.addEventListener('orientationchange', function () { setTimeout(fit, 120); });
+    fit();
+    EF.Game.boot();
+    // scene driver for screenshots/demos: ?autoplay=1&scene=town|dungeon|combat|overland|campaign
+    var sm = location.search.match(/[?&]scene=([a-z-]+)/);
+    if (sm && typeof EF.Game.scene === 'function') {
+      setTimeout(function () {
+        // headless virtual time starves requestAnimationFrame; repaint the
+        // main view from a timer so --screenshot captures a current frame.
+        setInterval(function () {
+          try {
+            var g = EF.Game;
+            if (!g.state || !g.view || (window.EF.Combat && EF.Combat.active)) return;
+            if (g.state.viewVisible === false || !g.state.pos) return;
+            g.view.light = g.state.mode === 'dungeon' ? 0.85 : 1.15;
+            g.view.setCamera(g.state.pos.x + 0.5, g.state.pos.y + 0.5, g.state.pos.dir * Math.PI / 2);
+            g.view.sprites = g.buildSprites();
+            g.view.render();
+          } catch (e) { /* ignore transient frames */ }
+        }, 250);
+        EF.Game.scene(sm[1]);
+      }, 200);
+    }
+    if (/[?&]selftest=1/.test(location.search) && typeof EF.Game.selftest === 'function') {
+      setTimeout(function () {
+        function paint(result, res) {
+          var pre = document.getElementById('selftest-report');
+          if (!pre) {
+            pre = document.createElement('pre');
+            pre.id = 'selftest-report';
+            document.body.appendChild(pre);
+          }
+          pre.textContent = (res.lines || []).join('\n') + '\nSELFTEST ' + result + '\n';
+          pre.setAttribute('data-result', result);
+        }
+        Promise.resolve(EF.Game.selftest()).then(function (res) {
+          var ok = res === true || (res && res.ok);
+          console.log('selftest: ' + (ok ? 'PASS' : 'FAIL (see logs/selftest-dom.html, logs/selftest-console.log)'));
+          paint(ok ? 'PASS' : 'FAIL', res || {});
+        }, function (e) {
+          console.log('selftest: CRASH ' + (e && e.stack || e));
+          paint('CRASH', { lines: ['[FAIL] exception: ' + (e && e.stack || e)] });
+        });
+      }, 300);
+    }
+  });
+</script>
+</body>
+</html>
