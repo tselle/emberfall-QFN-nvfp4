@@ -270,9 +270,12 @@
       if (!this.mmFn) return;
       const N = 13, cell = Math.max(6, Math.floor(Math.min(w, h) * 0.028));
       const mw = N * cell, mh = N * cell;
-      const ox = w - mw - 8, oy = h - mh - 8;
-      ctx.fillStyle = 'rgba(8,10,12,0.78)';
+      const ox = w - mw - 8, oy = 8; // upper-right corner
+      ctx.fillStyle = 'rgba(8,10,12,0.86)';
       ctx.fillRect(ox - 3, oy - 3, mw + 6, mh + 6);
+      ctx.strokeStyle = 'rgba(201,168,76,0.55)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(ox - 2.5, oy - 2.5, mw + 5, mh + 5);
       this.mmFn(ctx, ox, oy, cell, N, this.cam, this.mmData);
     }
   }
