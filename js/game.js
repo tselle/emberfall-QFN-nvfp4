@@ -1081,7 +1081,9 @@
       }
       // ensure the boss dies for the test: give battle directly (repeat until the deed is done)
       if (!(G.state.quests['q0_main'] || {}).done) say('boss not met by wandering; giving battle');
-      for (let attempt = 0; attempt < 4 && !(G.state.quests['q0_main'] || {}).done; attempt++) {
+      for (let attempt = 0; attempt < 6 && !(G.state.quests['q0_main'] || {}).done; attempt++) {
+        // a fresh bout: war-weary selftest parties otherwise just keep losing
+        for (const p of G.state.party) { p.alive = true; p.hp = p.maxHp; if (p.spells) for (const s of p.spells) s.cast = false; if (p.status) Object.keys(p.status).forEach(k => { p.status[k] = 0; }); }
         let f = null, boss = null, bossFloor = -1;
         for (let fl = 0; fl < EF.Adventures.e0.floors.length && !boss; fl++) {
           G.enterDungeon(fl);
@@ -1090,6 +1092,7 @@
           if (boss) bossFloor = fl;
         }
         if (!boss) { say('boss no longer alive on any floor (attempt ' + attempt + ')'); break; }
+        for (const m of f.mons) if (m.alive && m !== boss && G.seeMonster(m)) m.state = 'guard'; // don't stack the bout
         say('giving battle, attempt ' + (attempt + 1) + ' on floor ' + (bossFloor + 1));
         boss.sleeping = false; boss.alerted = true; boss.hunt = true; boss.state = 'hunt';
         G.state.pos = { x: f.entry.x, y: f.entry.y, dir: 0 };
