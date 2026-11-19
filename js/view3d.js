@@ -138,7 +138,13 @@
       this.shake = 0;
     }
     setCamera(x, y, a) { this.cam.x = this.tgt.x = x; this.cam.y = this.tgt.y = y; this.cam.a = this.tgt.a = a; }
-    face(x, y, a) { this.tgt.x = x + 0.5; this.tgt.y = y + 0.5; this.tgt.a = a; }
+    face(x, y, a) {
+      this.tgt.x = x + 0.5; this.tgt.y = y + 0.5;
+      // choose the equivalent angle nearest the camera's current heading so
+      // the pan takes the short way around (no 360° snaps)
+      this.tgt.a = this.cam.a + Math.atan2(Math.sin(a - this.cam.a), Math.cos(a - this.cam.a));
+    }
+    turnBy(d) { this.tgt.a += d * Math.PI / 2; }
     snap() { this.cam.x = this.tgt.x; this.cam.y = this.tgt.y; this.cam.a = this.tgt.a; }
     update(dt) {
       const k = Math.min(1, dt * 14);

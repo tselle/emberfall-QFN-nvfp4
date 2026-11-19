@@ -218,7 +218,10 @@
     const st = G.state, [dx, dy] = dirVec((st.pos.dir + (right ? 1 : 3)) & 3);
     G.tryMove(st.pos.x + dx, st.pos.y + dy, true);
   };
-  G.turn = function (d) { G.state.pos.dir = (G.state.pos.dir + d + 4) & 3; };
+  G.turn = function (d) {
+    G.state.pos.dir = (G.state.pos.dir + d + 4) & 3;
+    if (G.view) G.view.turnBy(d); // rotate the first-person camera too
+  };
   G.tryMove = function (x, y, quietBump) {
     const st = G.state;
     const c = G.cell(x, y);
