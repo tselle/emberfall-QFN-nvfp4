@@ -171,7 +171,15 @@
     const adv = EF.Adventures[st.adventureId];
     const gate = adv.town.objects.find(o => o.kind === 'wildexit') || { x: 1, y: 1 };
     st.mode = 'town';
-    st.pos = { x: gate.x, y: gate.y, dir: 3 };
+    // face inward from the gate, whichever wall it sits in
+    const tw = adv.town.grid[0].length, th = adv.town.grid.length;
+    let dir = 0;
+    if (gate.y >= th - 2) dir = 0;            // south gate → look north
+    else if (gate.y <= 1) dir = 2;            // north gate → look south
+    else if (gate.x <= 1) dir = 1;            // west gate → look east
+    else if (gate.x >= tw - 2) dir = 3;       // east gate → look west
+    st.pos = { x: gate.x, y: gate.y, dir };
+    if (EF.UI.onModeChange) EF.UI.onModeChange();
     if (G.view) {
       G.view.map = { W: adv.town.grid[0].length, H: adv.town.grid.length, cell: (x, y) => G.cell(x, y, true) };
       G.view.setCamera(st.pos.x + 0.5, st.pos.y + 0.5, angOf(st.pos.dir));
@@ -181,6 +189,7 @@
     const st = G.state;
     st.mode = 'dungeon';
     st.dungeonFloor = floor || 0;
+    if (EF.UI.onModeChange) EF.UI.onModeChange();
     const f = G.floorState();
     if (!f.entered) { st.pos = { x: f.entry.x, y: f.entry.y, dir: f.entry.dir }; f.entered = true; G.log('You descend into ' + EF.Adventures[st.adventureId].floors[st.dungeonFloor].name + '.'); }
     else G.log('You return to ' + EF.Adventures[st.adventureId].floors[st.dungeonFloor].name + '.');
@@ -832,12 +841,25 @@
   EF.Input = {
     bind: function () {
       window.addEventListener('keydown', e => {
-        if (EF.UI && EF.UI.consumesKeys(e)) return;
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        const ae = document.activeElement;
+        if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+        const k = (e.key || '').toLowerCase();
+        if (!k || k === 'shift' || k === 'control' || k === 'alt' || k === 'meta') return;
+
+        if (EF.Combat.active) {
+          if (k === 'escape') { EF.Combat.requestFlee(); e.preventDefault(); }
+          return;
+        }
+        // A screen or dialog is open: Escape always cancels/closes, registered
+        // hotkeys fire, all other keys are swallowed (no phantom moves behind panels).
+        if (EF.UI.open) {
+          if (k === 'escape' || k === 'backspace') { EF.UI.back(); e.preventDefault(); return; }
+          if (EF.UI.press(k)) { e.preventDefault(); return; }
+          return;
+        }
         const st = G.state;
-        const k = e.key.toLowerCase();
         if (!st) return;
-        if (EF.Combat.active) { if (k === 'escape') EF.Combat.requestFlee(); return; }
-        if (st.mode === 'overland') { EF.Overland.key(k, e); return; }
         let used = true;
         switch (k) {
           case 'arrowup': case 'w': G.moveFwd(); break;

@@ -82,12 +82,13 @@
     _origShow.call(EF.UI, name, arg);
     if (name === 'menu') {
       const wrap = document.getElementById('screen');
-      const btn = [...wrap.querySelectorAll('button')].find(x => x.textContent === 'Save / Load');
+      const btn = [...wrap.querySelectorAll('button')].find(x => /^Save \/ Load/.test(x.textContent || ''));
       if (btn) {
         const camp = document.createElement('button');
         camp.className = 'bigbtn';
-        camp.textContent = 'Company & Campaign';
+        camp.innerHTML = 'Company &amp; Campaign <kbd>c</kbd>';
         camp.onclick = () => CP.open();
+        EF.UI.hot('c', () => CP.open());
         btn.parentNode.insertBefore(camp, btn);
       }
     }

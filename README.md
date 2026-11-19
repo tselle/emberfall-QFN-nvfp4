@@ -31,7 +31,12 @@ after every meaningful event).
 | B | bestiary |
 | I | pack / inventory |
 | 1–6 | open that character's sheet |
-| Esc | menu |
+| Esc | menu — and cancel/close whatever dialog or screen is open |
+
+On the overland map, W/A/S/D (or the arrows) step one square per terrain.
+Dialogs and menus carry key badges (New **N**, Resume **R**, Loads **L**,
+Campaign **C**, How to **H**, save slots **1–5**, door menu **O**/**P**/**L**/**B**/**C**) —
+**Esc** always backs out one layer.
 
 Touch devices get an on-screen movement pad (turn, sidestep, forward, back,
 search, camp) automatically; the layout adapts to phone and tablet, portrait

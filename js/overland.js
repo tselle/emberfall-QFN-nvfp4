@@ -13,6 +13,7 @@
   O.enter = function (announce) {
     const st = EF.Game.state;
     st.mode = 'overland';
+    if (EF.UI.onModeChange) EF.UI.onModeChange();
     if (!st.overlandPos) {
       const t = W().town;
       st.overlandPos = { x: t.x, y: t.y };
@@ -145,12 +146,25 @@
     const bar = EF.UI.cmdbar([
       ['Camp R', () => EF.Watch.open()],
       ['Journal J', () => EF.Journal.open()],
+      ['Bestiary B', () => EF.Bestiary.open()],
       ['Map M', () => EF.MapPage.open()],
       ['Pack I', () => EF.UI.show('inventory')],
       ['Menu Esc', () => EF.UI.show('menu')]
     ]);
     box.appendChild(bar);
     wrap.appendChild(box);
+    // keyboard travel on the wilds map
+    const U = EF.UI;
+    const step = (dx, dy) => { O.step(dx, dy); };
+    U.hot('w', () => step(0, -1)); U.hot('arrowup', () => step(0, -1));
+    U.hot('s', () => step(0, 1)); U.hot('arrowdown', () => step(0, 1));
+    U.hot('a', () => step(-1, 0)); U.hot('arrowleft', () => step(-1, 0));
+    U.hot('d', () => step(1, 0)); U.hot('arrowright', () => step(1, 0));
+    U.hot('r', () => EF.Watch.open());
+    U.hot('j', () => EF.Journal.open());
+    U.hot('b', () => EF.Bestiary.open());
+    U.hot('m', () => EF.MapPage.open());
+    U.hot('i', () => EF.UI.show('inventory'));
     drawMap();
     cv.onclick = e => {
       const cell = cellFromClick(e);

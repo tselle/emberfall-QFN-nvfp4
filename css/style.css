@@ -38,6 +38,13 @@ body {
 .cmdbar { display: flex; gap: 4px; padding: 4px 6px; overflow-x: auto; background: linear-gradient(rgba(12,11,9,0), rgba(12,11,9,0.85) 40%); }
 .cmdbtn { background: var(--panel); color: var(--vellum); border: 1px solid var(--line); border-bottom: 2px solid var(--gold); border-radius: 4px; padding: 5px 9px; font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
 .cmdbtn kbd { display: block; font-size: 9px; color: var(--dim); }
+.bigbtn kbd, .mini kbd, .iname kbd, .dim kbd {
+  display: inline-block; margin-left: 6px; padding: 0 5px;
+  font: inherit; font-size: 10px; line-height: 16px; color: var(--gold);
+  background: rgba(0,0,0,0.35); border: 1px solid var(--line); border-radius: 3px;
+  vertical-align: 1px;
+}
+.iname kbd { margin-left: 0; margin-right: 6px; }
 .cmdbtn.off, .cmdbtn:disabled { opacity: 0.4; }
 .cmdbtn:active { background: var(--panel2); }
 

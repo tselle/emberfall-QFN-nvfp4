@@ -11,6 +11,7 @@
   EF.UI = U;
 
   U.open = null;
+  U.openArg = undefined;
   const $ = sel => document.querySelector(sel);
   const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
   const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
@@ -20,21 +21,68 @@
     return !!U.open && U.open !== 'combat';
   };
 
+  // --- hotkey registry: screens & dialogs bind keys while they render.
+  // Escape always cancels/closes (U.back); Enter fires the primary action
+  // when a screen registered one.
   const SCREENS = {};
   U.register = (name, render) => { SCREENS[name] = render; };
+  U._keys = {};
+  U._hist = [];
+  U.hot = function (key, fn) { if (key && fn) U._keys[String(key).toLowerCase()] = fn; };
+  U.press = function (k) { const f = U._keys[k]; if (f) { f(); return true; } return false; };
 
-  U.show = function (name, arg) {
-    U.open = name === 'ui' ? null : name;
+  // a labelled dialog button with a hotkey hint
+  U.opt = function (box, label, key, fn) {
+    const t = el('button', 'bigbtn', esc(label) + (key ? ' <kbd>' + esc(key.toUpperCase()) + '</kbd>' : ''));
+    t.onclick = fn;
+    box.appendChild(t);
+    if (key) U.hot(key, () => { if (U.open) fn(); });
+    return t;
+  };
+
+  function renderInto(name, arg) {
+    U.open = name; U.openArg = arg; U._keys = {};
     const wrap = $('#screen');
-    if (!wrap) return;
-    if (!name || name === 'ui') { wrap.innerHTML = ''; wrap.classList.add('hidden'); U.refreshHUD(); return; }
     wrap.classList.remove('hidden');
     wrap.innerHTML = '';
     const render = SCREENS[name];
     if (render) render(wrap, arg);
     U.refreshHUD();
+  }
+
+  U.show = function (name, arg) {
+    const wrap = $('#screen');
+    if (!wrap) return;
+    if (!name || name === 'ui') { U._hist = []; U._keys = {}; U.open = null; U.openArg = undefined; wrap.innerHTML = ''; wrap.classList.add('hidden'); U.refreshHUD(); return; }
+    if (U.open && U.open !== name && U.open !== 'float' && SCREENS[U.open]) U._hist.push({ name: U.open, arg: U.openArg });
+    renderInto(name, arg);
   };
-  U.close = () => U.show('ui');
+
+  // a mode change (entering town/dungeon) invalidates screens that belonged
+  // to the old mode — most of all the overland map
+  U.onModeChange = function () {
+    U._hist = [];
+    if (U.open === 'overland' && EF.Game.state && EF.Game.state.mode !== 'overland') U.show('ui');
+  };
+
+  // Escape / Done: cancel this screen and restore whatever was under it.
+  U.back = function () {
+    if (!U.open) { if (EF.Game.state) U.show('menu'); return; }
+    if (U.open === 'defeat') return;                       // no escaping defeat
+    if (U.open === 'overland') { U.show('menu'); return; } // the wilds have no “under”
+    const prev = U._hist.pop();
+    if (prev && SCREENS[prev.name]) { U.open = null; renderInto(prev.name, prev.arg); return; }
+    U.close();
+  };
+
+  U.close = function () {
+    // leaving a screen: back to the live view — which, in the wilds, is the
+    // overland map screen itself
+    const st = EF.Game.state;
+    U._hist = []; U._keys = {};
+    if (st && st.mode === 'overland') { U.open = null; renderInto('overland'); return; }
+    U.show('ui');
+  };
 
   // ---------------------------------------------------------------- HUD
   U.refreshHUD = function () {
@@ -104,17 +152,14 @@
     const box = U.panel('small');
     box.appendChild(el('h3', '', esc(s.name)));
     box.appendChild(el('p', 'dim', 'A hamlet of a dozen roofs. They will trade what they have, and hear what you bring.'));
-    const b1 = el('button', 'bigbtn', 'Buy supplies (general stock, +10%)');
-    b1.onclick = () => U.show('hamletShop', s);
-    const b2 = el('button', 'bigbtn', 'Rest here (camp is safe tonight) — 1 gp each');
-    b2.onclick = () => {
+    const b1 = U.opt(box, 'Buy supplies (general stock, +10%)', 'b', () => U.show('hamletShop', s));
+    const b2 = U.opt(box, 'Rest here (camp is safe tonight) — 1 gp each', 'r', () => {
       payFrom(EF.Game.state.party.length);
       EF.Game.state.flags.safeCamp = true;
       EF.Game.log('The hamlet gives you the barn. Nothing comes for you tonight.');
       U.close(); EF.Overland.enter(false);
-    };
-    const b3 = el('button', 'bigbtn', 'Ask after the news');
-    b3.onclick = () => { const w = EF.Wilds.gen(EF.Game.state.adventureId); EF.Game.log('They say: “' + EF.dice.pick(w.rumours) + '”'); U.close(); };
+    });
+    const b3 = U.opt(box, 'Ask after the news', 'n', () => { const w = EF.Wilds.gen(EF.Game.state.adventureId); EF.Game.log('They say: “' + EF.dice.pick(w.rumours) + '”'); U.close(); });
     box.appendChild(b1); box.appendChild(b2); box.appendChild(b3);
     doneBtn(box, 'Move on');
     showFloat(box);
@@ -196,19 +241,17 @@
     const box = el('div', 'panel menu-panel');
     box.appendChild(el('h1', 'title', 'EMBERFALL'));
     box.appendChild(el('div', 'subtitle', 'The Emberwild Saga'));
-    const b = (label, fn, dis) => {
-      const x = el('button', 'bigbtn', label);
+    const b = (label, key, fn, dis) => {
+      const x = U.opt(box, label, key, fn);
       x.disabled = !!dis;
-      x.onclick = fn;
-      box.appendChild(x);
     };
-    b('New Company', () => U.show('adventureSelect'));
-    b('Resume Adventure', () => {
+    b('New Company', 'n', () => U.show('adventureSelect'));
+    b('Resume Adventure', 'r', () => {
       if (EF.loadGame('autosave')) { if (EF.Game.loadFrom('autosave')) U.show('ui'); }
       else U.show('saves');
     }, !EF.loadGame('autosave'));
-    b('Save / Load', () => U.show('saves'));
-    b('How to Play', () => U.show('howto'));
+    b('Save / Load', 'l', () => U.show('saves'));
+    b('How to Play', 'h', () => U.show('howto'));
     const v = el('div', 'tiny'); v.textContent = 'v1.0 · a hand-drawn fantasy, all code, no pictures';
     box.appendChild(v);
     wrap.appendChild(box);
@@ -388,13 +431,13 @@
     const box = el('div', 'panel small center');
     const isSecret = ch === 'S';
     box.appendChild(el('h3', '', isSecret && f.secretsFound[k] ? 'A concealed door' : ch === 'L' ? 'A locked door' : 'A door'));
-    const b = (label, fn) => { const t = el('button', 'bigbtn', label); t.onclick = fn; box.appendChild(t); };
-    if (state === 'closed' && ch !== 'L') b('Open it', () => { EF.Game.doorOpen(x, y); U.close(); });
-    if (ch === 'L') b('Try to pick the lock', () => { EF.Game.doorOpen(x, y); U.close(); });
-    b('Listen at it', () => { EF.Game.listenDoor(x, y); U.close(); });
-    b('Break it down', () => { EF.Game.doorBust(x, y); U.close(); });
-    b('Close the door', () => { f.doors[k] = 'closed'; U.close(); });
-    b('Back away', () => U.close());
+    const b = (label, key, fn) => { U.opt(box, label, key, fn); };
+    if (state === 'closed' && ch !== 'L') b('Open it', 'o', () => { EF.Game.doorOpen(x, y); U.close(); });
+    if (ch === 'L') b('Try to pick the lock', 'p', () => { EF.Game.doorOpen(x, y); U.close(); });
+    b('Listen at it', 'l', () => { EF.Game.listenDoor(x, y); U.close(); });
+    b('Break it down', 'b', () => { EF.Game.doorBust(x, y); U.close(); });
+    b('Close the door', 'c', () => { f.doors[k] = 'closed'; U.close(); });
+    b('Back away', null, () => U.close());
     showFloat(box);
   };
 
@@ -403,7 +446,8 @@
     wrap.classList.remove('hidden');
     wrap.innerHTML = '';
     wrap.appendChild(panel);
-    U.open = 'float';
+    if (U.open && U.open !== 'float' && SCREENS[U.open]) U._hist.push({ name: U.open, arg: U.openArg });
+    U.open = 'float'; U.openArg = undefined; U._keys = {};
   }
 
   // ---------------------------------------------------------------- town objects
@@ -430,7 +474,7 @@
     return box;
   }
   function doneBtn(box, label) {
-    const b = el('button', 'bigbtn', label || 'Leave');
+    const b = el('button', 'bigbtn', esc(label || 'Leave') + ' <kbd>ESC</kbd>');
     b.onclick = () => U.close();
     box.appendChild(b);
   }
@@ -628,9 +672,10 @@
     const box = centerPanel(o.name, 'The stair goes down. How far do you intend to go?');
     const adv = EF.Adventures[EF.Game.state.adventureId];
     for (let i = 0; i < adv.floors.length; i++) {
-      const b = el('button', 'bigbtn', 'Descend to: ' + adv.floors[i].name + ' (level ' + (i + 1) + ')');
+      const b = el('button', 'bigbtn', 'Descend to: ' + adv.floors[i].name + ' (level ' + (i + 1) + ') <kbd>' + (i + 1) + '</kbd>');
       b.onclick = () => { U.close(); EF.Game.enterDungeon(i); };
       box.appendChild(b);
+      U.hot(String(i + 1), ((n) => () => { if (U.open) { U.close(); EF.Game.enterDungeon(n); } })(i));
     }
     doneBtn(box, 'Not today');
     showFloat(box);
@@ -838,10 +883,10 @@
   U.register('saves', wrap => {
     const box = el('div', 'panel wide');
     box.appendChild(el('h2', '', 'Saves'));
-    for (const slot of EF.SLOTS) {
+    EF.SLOTS.forEach((slot, i) => {
       const info = EF.slotInfo(slot);
       const line = el('div', 'itemline');
-      line.appendChild(el('span', 'iname', EF.slotLabel[slot] + ' — ' + (info ? info.adventure + ' · ' + info.party : 'empty')));
+      line.appendChild(el('span', 'iname', '<kbd>' + (i + 1) + '</kbd> ' + EF.slotLabel[slot] + ' — ' + (info ? info.adventure + ' · ' + info.party : 'empty')));
       const sv = el('button', 'mini', 'Save');
       sv.disabled = !EF.Game.state;
       sv.onclick = () => { EF.Game.saveTo(slot); U.show('saves'); };
@@ -853,8 +898,9 @@
       dl.onclick = () => { EF.deleteSlot(slot); U.show('saves'); };
       line.appendChild(sv); line.appendChild(ld); line.appendChild(dl);
       box.appendChild(line);
-    }
-    const b = el('button', 'bigbtn', 'Back');
+      U.hot(String(i + 1), () => { if (EF.loadGame(slot) && EF.Game.loadFrom(slot)) U.close(); });
+    });
+    const b = el('button', 'bigbtn', 'Back <kbd>ESC</kbd>');
     b.onclick = () => U.show('menu');
     box.appendChild(b);
     wrap.appendChild(box);
@@ -884,6 +930,7 @@
 <p><b>W / ↑</b> forward · <b>S / ↓</b> back · <b>A ← / D →</b> turn · <b>Q / E</b> sidestep left/right. On touch screens use the on-screen pad.</p>
 <h4>Keys</h4>
 <p><b>F</b> search (secret doors & traps) · <b>R</b> make camp · <b>M</b> full map · <b>J</b> journal · <b>B</b> bestiary · <b>I</b> pack · <b>1–6</b> character sheets · <b>Esc</b> menu.</p>
+<p>On the wilds map <b>W/A/S/D</b> (or arrows) step one square. <b>Esc</b> always cancels or closes whatever is open — a dialog, a shop, a screen — and steps back one layer. Menus and dialogs show a small key badge on each choice (door menu: <b>O</b>pen / pick <b>L</b>ock / <b>L</b>isten / <b>B</b>reak; menu: <b>N</b>ew, <b>R</b>esume, <b>L</b>oads, <b>C</b>ampaign, <b>H</b>ow to; save slots: <b>1–5</b> loads).</p>
 <h4>Doors & walls</h4>
 <p>Walk into a door to get a menu: open, pick, listen, break. Secret doors look exactly like wall — <b>search</b> beside blank-looking walls; dwarves, gnomes and thieves are good at it. Searching also turns up nearby traps, which then appear on your map; only a thief should touch them.</p>
 <h4>Combat</h4>
